@@ -20,6 +20,9 @@ type DownloadsCollector struct {
 	DownloadsLeeching   *prometheus.Desc
 	DownloadsActive     *prometheus.Desc
 
+	DownloadRateBytes *prometheus.Desc
+	UploadRateBytes   *prometheus.Desc
+
 	c *rtorrent.Client
 }
 
@@ -31,6 +34,10 @@ var _ prometheus.Collector = &DownloadsCollector{}
 func NewDownloadsCollector(c *rtorrent.Client) *DownloadsCollector {
 	const (
 		subsystem = "downloads"
+	)
+
+	var (
+		labels = []string{"info_hash", "name"}
 	)
 
 	return &DownloadsCollector{
@@ -98,6 +105,20 @@ func NewDownloadsCollector(c *rtorrent.Client) *DownloadsCollector {
 			nil,
 		),
 
+		DownloadRateBytes: prometheus.NewDesc(
+			prometheus.BuildFQName(namespace, subsystem, "download_rate_bytes"),
+			"Current download rate in bytes.",
+			labels,
+			nil,
+		),
+
+		UploadRateBytes: prometheus.NewDesc(
+			prometheus.BuildFQName(namespace, subsystem, "upload_rate_bytes"),
+			"Current upload rate in bytes.",
+			labels,
+			nil,
+		),
+
 		c: c,
 	}
 }
@@ -148,6 +169,42 @@ func (c *DownloadsCollector) collect(ch chan<- prometheus.Metric) (*prometheus.D
 	active, err := c.c.Downloads.Active()
 	if err != nil {
 		return c.DownloadsActive, err
+	}
+
+	for _, a := range active {
+		name, err := c.c.Downloads.BaseFilename(a)
+		if err != nil {
+			return c.DownloadRateBytes, err
+		}
+
+		labels := []string{
+			a,
+			name,
+		}
+
+		down, err := c.c.Downloads.DownloadRate(a)
+		if err != nil {
+			return c.DownloadRateBytes, err
+		}
+
+		up, err := c.c.Downloads.UploadRate(a)
+		if err != nil {
+			return c.UploadRateBytes, err
+		}
+
+		ch <- prometheus.MustNewConstMetric(
+			c.DownloadRateBytes,
+			prometheus.GaugeValue,
+			float64(down),
+			labels...,
+		)
+
+		ch <- prometheus.MustNewConstMetric(
+			c.UploadRateBytes,
+			prometheus.GaugeValue,
+			float64(up),
+			labels...,
+		)
 	}
 
 	ch <- prometheus.MustNewConstMetric(
@@ -220,6 +277,9 @@ func (c *DownloadsCollector) Describe(ch chan<- *prometheus.Desc) {
 		c.DownloadsSeeding,
 		c.DownloadsLeeching,
 		c.DownloadsActive,
+
+		c.DownloadRateBytes,
+		c.UploadRateBytes,
 	}
 
 	for _, d := range ds {
