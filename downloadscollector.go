@@ -123,9 +123,23 @@ func NewDownloadsCollector(c *rtorrent.Client) *DownloadsCollector {
 	}
 }
 
-// collect begins a metrics collection task for all metrics related to UniFi
-// stations.
+// collect begins a metrics collection task for all metrics related to rTorrent
+// downloads.
 func (c *DownloadsCollector) collect(ch chan<- prometheus.Metric) (*prometheus.Desc, error) {
+	if desc, err := c.collectDownloadCounts(ch); err != nil {
+		return desc, err
+	}
+
+	if desc, err := c.collectActiveDownloads(ch); err != nil {
+		return desc, err
+	}
+
+	return nil, nil
+}
+
+// collectDownloadCounts collects metrics which track number of downloads in
+// various possible states.
+func (c *DownloadsCollector) collectDownloadCounts(ch chan<- prometheus.Metric) (*prometheus.Desc, error) {
 	all, err := c.c.Downloads.All()
 	if err != nil {
 		return c.Downloads, err
@@ -164,47 +178,6 @@ func (c *DownloadsCollector) collect(ch chan<- prometheus.Metric) (*prometheus.D
 	leeching, err := c.c.Downloads.Leeching()
 	if err != nil {
 		return c.DownloadsLeeching, err
-	}
-
-	active, err := c.c.Downloads.Active()
-	if err != nil {
-		return c.DownloadsActive, err
-	}
-
-	for _, a := range active {
-		name, err := c.c.Downloads.BaseFilename(a)
-		if err != nil {
-			return c.DownloadRateBytes, err
-		}
-
-		labels := []string{
-			a,
-			name,
-		}
-
-		down, err := c.c.Downloads.DownloadRate(a)
-		if err != nil {
-			return c.DownloadRateBytes, err
-		}
-
-		up, err := c.c.Downloads.UploadRate(a)
-		if err != nil {
-			return c.UploadRateBytes, err
-		}
-
-		ch <- prometheus.MustNewConstMetric(
-			c.DownloadRateBytes,
-			prometheus.GaugeValue,
-			float64(down),
-			labels...,
-		)
-
-		ch <- prometheus.MustNewConstMetric(
-			c.UploadRateBytes,
-			prometheus.GaugeValue,
-			float64(up),
-			labels...,
-		)
 	}
 
 	ch <- prometheus.MustNewConstMetric(
@@ -255,11 +228,58 @@ func (c *DownloadsCollector) collect(ch chan<- prometheus.Metric) (*prometheus.D
 		float64(len(leeching)),
 	)
 
+	return nil, nil
+}
+
+// collectActiveDownloads collects information about active downloads,
+// which are uploading and/or downloading data.
+func (c *DownloadsCollector) collectActiveDownloads(ch chan<- prometheus.Metric) (*prometheus.Desc, error) {
+	active, err := c.c.Downloads.Active()
+	if err != nil {
+		return c.DownloadsActive, err
+	}
+
 	ch <- prometheus.MustNewConstMetric(
 		c.DownloadsActive,
 		prometheus.GaugeValue,
 		float64(len(active)),
 	)
+
+	for _, a := range active {
+		name, err := c.c.Downloads.BaseFilename(a)
+		if err != nil {
+			return c.DownloadRateBytes, err
+		}
+
+		labels := []string{
+			a,
+			name,
+		}
+
+		down, err := c.c.Downloads.DownloadRate(a)
+		if err != nil {
+			return c.DownloadRateBytes, err
+		}
+
+		up, err := c.c.Downloads.UploadRate(a)
+		if err != nil {
+			return c.UploadRateBytes, err
+		}
+
+		ch <- prometheus.MustNewConstMetric(
+			c.DownloadRateBytes,
+			prometheus.GaugeValue,
+			float64(down),
+			labels...,
+		)
+
+		ch <- prometheus.MustNewConstMetric(
+			c.UploadRateBytes,
+			prometheus.GaugeValue,
+			float64(up),
+			labels...,
+		)
+	}
 
 	return nil, nil
 }
