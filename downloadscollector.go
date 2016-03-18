@@ -7,6 +7,26 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
+var _ DownloadsSource = &rtorrent.DownloadService{}
+
+// A DownloadsSource is a type which can retrieve downloads information from
+// rTorrent.  It is implemented by *rtorrent.DownloadService.
+type DownloadsSource interface {
+	All() ([]string, error)
+	Started() ([]string, error)
+	Stopped() ([]string, error)
+	Complete() ([]string, error)
+	Incomplete() ([]string, error)
+	Hashing() ([]string, error)
+	Seeding() ([]string, error)
+	Leeching() ([]string, error)
+	Active() ([]string, error)
+
+	BaseFilename(infoHash string) (string, error)
+	DownloadRate(infoHash string) (int, error)
+	UploadRate(infoHash string) (int, error)
+}
+
 // A DownloadsCollector is a Prometheus collector for metrics regarding rTorrent
 // downloads.
 type DownloadsCollector struct {
@@ -23,7 +43,7 @@ type DownloadsCollector struct {
 	DownloadRateBytes *prometheus.Desc
 	UploadRateBytes   *prometheus.Desc
 
-	c *rtorrent.Client
+	ds DownloadsSource
 }
 
 // Verify that DownloadsCollector implements the prometheus.Collector interface.
@@ -31,7 +51,7 @@ var _ prometheus.Collector = &DownloadsCollector{}
 
 // NewDownloadsCollector creates a new DownloadsCollector which collects metrics
 // regarding rTorrent downloads.
-func NewDownloadsCollector(c *rtorrent.Client) *DownloadsCollector {
+func NewDownloadsCollector(ds DownloadsSource) *DownloadsCollector {
 	const (
 		subsystem = "downloads"
 	)
@@ -119,7 +139,7 @@ func NewDownloadsCollector(c *rtorrent.Client) *DownloadsCollector {
 			nil,
 		),
 
-		c: c,
+		ds: ds,
 	}
 }
 
@@ -140,42 +160,42 @@ func (c *DownloadsCollector) collect(ch chan<- prometheus.Metric) (*prometheus.D
 // collectDownloadCounts collects metrics which track number of downloads in
 // various possible states.
 func (c *DownloadsCollector) collectDownloadCounts(ch chan<- prometheus.Metric) (*prometheus.Desc, error) {
-	all, err := c.c.Downloads.All()
+	all, err := c.ds.All()
 	if err != nil {
 		return c.Downloads, err
 	}
 
-	started, err := c.c.Downloads.Started()
+	started, err := c.ds.Started()
 	if err != nil {
 		return c.DownloadsStarted, err
 	}
 
-	stopped, err := c.c.Downloads.Stopped()
+	stopped, err := c.ds.Stopped()
 	if err != nil {
 		return c.DownloadsStopped, err
 	}
 
-	complete, err := c.c.Downloads.Complete()
+	complete, err := c.ds.Complete()
 	if err != nil {
 		return c.DownloadsComplete, err
 	}
 
-	incomplete, err := c.c.Downloads.Incomplete()
+	incomplete, err := c.ds.Incomplete()
 	if err != nil {
 		return c.DownloadsIncomplete, err
 	}
 
-	hashing, err := c.c.Downloads.Hashing()
+	hashing, err := c.ds.Hashing()
 	if err != nil {
 		return c.DownloadsHashing, err
 	}
 
-	seeding, err := c.c.Downloads.Seeding()
+	seeding, err := c.ds.Seeding()
 	if err != nil {
 		return c.DownloadsSeeding, err
 	}
 
-	leeching, err := c.c.Downloads.Leeching()
+	leeching, err := c.ds.Leeching()
 	if err != nil {
 		return c.DownloadsLeeching, err
 	}
@@ -234,7 +254,7 @@ func (c *DownloadsCollector) collectDownloadCounts(ch chan<- prometheus.Metric) 
 // collectActiveDownloads collects information about active downloads,
 // which are uploading and/or downloading data.
 func (c *DownloadsCollector) collectActiveDownloads(ch chan<- prometheus.Metric) (*prometheus.Desc, error) {
-	active, err := c.c.Downloads.Active()
+	active, err := c.ds.Active()
 	if err != nil {
 		return c.DownloadsActive, err
 	}
@@ -246,7 +266,7 @@ func (c *DownloadsCollector) collectActiveDownloads(ch chan<- prometheus.Metric)
 	)
 
 	for _, a := range active {
-		name, err := c.c.Downloads.BaseFilename(a)
+		name, err := c.ds.BaseFilename(a)
 		if err != nil {
 			return c.DownloadRateBytes, err
 		}
@@ -256,12 +276,12 @@ func (c *DownloadsCollector) collectActiveDownloads(ch chan<- prometheus.Metric)
 			name,
 		}
 
-		down, err := c.c.Downloads.DownloadRate(a)
+		down, err := c.ds.DownloadRate(a)
 		if err != nil {
 			return c.DownloadRateBytes, err
 		}
 
-		up, err := c.c.Downloads.UploadRate(a)
+		up, err := c.ds.UploadRate(a)
 		if err != nil {
 			return c.UploadRateBytes, err
 		}

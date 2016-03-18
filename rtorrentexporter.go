@@ -32,7 +32,7 @@ var _ prometheus.Collector = &Exporter{}
 func New(c *rtorrent.Client) *Exporter {
 	return &Exporter{
 		collectors: []prometheus.Collector{
-			NewDownloadsCollector(c),
+			NewDownloadsCollector(c.Downloads),
 		},
 	}
 }
