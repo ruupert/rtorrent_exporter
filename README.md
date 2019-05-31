@@ -31,6 +31,14 @@ $ ./rtorrent_exporter -rtorrent.addr http://127.0.0.1/RPC2
 2016/03/09 17:39:40 starting rTorrent exporter on ":9135" for server "http://127.0.0.1/RPC2"
 ```
 
+Docker
+------
+
+```
+docker build -t rtorrent_exporter .
+docker run --rm -d -p 9135:9135 rtorrent_exporter -rtorrent.addr "http://127.0.0.1/RPC2"
+```
+
 Sample
 ------
 
