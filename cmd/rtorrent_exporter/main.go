@@ -9,6 +9,7 @@ import (
 	"github.com/mdlayher/rtorrent"
 	"github.com/mdlayher/rtorrent_exporter"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 var (
@@ -43,7 +44,7 @@ func main() {
 
 	prometheus.MustRegister(rtorrentexporter.New(c))
 
-	http.Handle(*metricsPath, prometheus.Handler())
+	http.Handle(*metricsPath, promhttp.Handler())
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, *metricsPath, http.StatusMovedPermanently)
 	})
