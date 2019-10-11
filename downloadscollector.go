@@ -24,7 +24,9 @@ type DownloadsSource interface {
 
 	BaseFilename(infoHash string) (string, error)
 	DownloadRate(infoHash string) (int, error)
+	DownloadTotal(infoHash string) (int, error)
 	UploadRate(infoHash string) (int, error)
+	UploadTotal(infoHash string) (int, error)
 }
 
 // A DownloadsCollector is a Prometheus collector for metrics regarding rTorrent
@@ -40,8 +42,10 @@ type DownloadsCollector struct {
 	DownloadsLeeching   *prometheus.Desc
 	DownloadsActive     *prometheus.Desc
 
-	DownloadRateBytes *prometheus.Desc
-	UploadRateBytes   *prometheus.Desc
+	DownloadRateBytes  *prometheus.Desc
+	DownloadTotalBytes *prometheus.Desc
+	UploadRateBytes    *prometheus.Desc
+	UploadTotalBytes   *prometheus.Desc
 
 	ds DownloadsSource
 }
@@ -132,9 +136,23 @@ func NewDownloadsCollector(ds DownloadsSource) *DownloadsCollector {
 			nil,
 		),
 
+		DownloadTotalBytes: prometheus.NewDesc(
+			prometheus.BuildFQName(namespace, subsystem, "download_total_bytes"),
+			"Total Bytes downloaded.",
+			labels,
+			nil,
+		),
+
 		UploadRateBytes: prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, subsystem, "upload_rate_bytes"),
 			"Current upload rate in bytes.",
+			labels,
+			nil,
+		),
+
+		UploadTotalBytes: prometheus.NewDesc(
+			prometheus.BuildFQName(namespace, subsystem, "upload_total_bytes"),
+			"Total Bytes uploaded.",
 			labels,
 			nil,
 		),
@@ -281,9 +299,19 @@ func (c *DownloadsCollector) collectActiveDownloads(ch chan<- prometheus.Metric)
 			return c.DownloadRateBytes, err
 		}
 
+		downTotal, err := c.ds.DownloadTotal(a)
+		if err != nil {
+			return c.DownloadTotalBytes, err
+		}
+
 		up, err := c.ds.UploadRate(a)
 		if err != nil {
 			return c.UploadRateBytes, err
+		}
+
+		upTotal, err := c.ds.UploadTotal(a)
+		if err != nil {
+			return c.UploadTotalBytes, err
 		}
 
 		ch <- prometheus.MustNewConstMetric(
@@ -294,9 +322,23 @@ func (c *DownloadsCollector) collectActiveDownloads(ch chan<- prometheus.Metric)
 		)
 
 		ch <- prometheus.MustNewConstMetric(
+			c.DownloadTotalBytes,
+			prometheus.GaugeValue,
+			float64(downTotal),
+			labels...,
+		)
+
+		ch <- prometheus.MustNewConstMetric(
 			c.UploadRateBytes,
 			prometheus.GaugeValue,
 			float64(up),
+			labels...,
+		)
+
+		ch <- prometheus.MustNewConstMetric(
+			c.UploadTotalBytes,
+			prometheus.GaugeValue,
+			float64(upTotal),
 			labels...,
 		)
 	}
@@ -319,7 +361,9 @@ func (c *DownloadsCollector) Describe(ch chan<- *prometheus.Desc) {
 		c.DownloadsActive,
 
 		c.DownloadRateBytes,
+		c.DownloadTotalBytes,
 		c.UploadRateBytes,
+		c.UploadTotalBytes,
 	}
 
 	for _, d := range ds {

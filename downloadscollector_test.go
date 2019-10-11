@@ -27,7 +27,8 @@ func TestDownloadsCollector(t *testing.T) {
 				files: map[string]string{
 					hashA: "foo",
 				},
-				rate: 1024,
+				rate:  1024,
+				total: 1024,
 			},
 			matches: []*regexp.Regexp{
 				regexp.MustCompile(`rtorrent_downloads 1`),
@@ -41,7 +42,9 @@ func TestDownloadsCollector(t *testing.T) {
 				regexp.MustCompile(`rtorrent_downloads_active 1`),
 
 				regexp.MustCompile(`rtorrent_downloads_download_rate_bytes{info_hash="AAAA",name="foo"} 1024`),
+				regexp.MustCompile(`rtorrent_downloads_download_total_bytes{info_hash="AAAA",name="foo"} 1024`),
 				regexp.MustCompile(`rtorrent_downloads_upload_rate_bytes{info_hash="AAAA",name="foo"} 1024`),
+				regexp.MustCompile(`rtorrent_downloads_upload_total_bytes{info_hash="AAAA",name="foo"} 1024`),
 			},
 		},
 		{
@@ -57,7 +60,8 @@ func TestDownloadsCollector(t *testing.T) {
 					hashB: "bar",
 					hashC: "baz",
 				},
-				rate: 2048,
+				rate:  2048,
+				total: 2048,
 			},
 			matches: []*regexp.Regexp{
 				regexp.MustCompile(`rtorrent_downloads 3`),
@@ -71,11 +75,17 @@ func TestDownloadsCollector(t *testing.T) {
 				regexp.MustCompile(`rtorrent_downloads_active 3`),
 
 				regexp.MustCompile(`rtorrent_downloads_download_rate_bytes{info_hash="AAAA",name="foo"} 2048`),
+				regexp.MustCompile(`rtorrent_downloads_download_total_bytes{info_hash="AAAA",name="foo"} 2048`),
 				regexp.MustCompile(`rtorrent_downloads_upload_rate_bytes{info_hash="AAAA",name="foo"} 2048`),
+				regexp.MustCompile(`rtorrent_downloads_upload_total_bytes{info_hash="AAAA",name="foo"} 2048`),
 				regexp.MustCompile(`rtorrent_downloads_download_rate_bytes{info_hash="BBBB",name="bar"} 2048`),
+				regexp.MustCompile(`rtorrent_downloads_download_total_bytes{info_hash="BBBB",name="bar"} 2048`),
 				regexp.MustCompile(`rtorrent_downloads_upload_rate_bytes{info_hash="BBBB",name="bar"} 2048`),
+				regexp.MustCompile(`rtorrent_downloads_upload_total_bytes{info_hash="BBBB",name="bar"} 2048`),
 				regexp.MustCompile(`rtorrent_downloads_download_rate_bytes{info_hash="CCCC",name="baz"} 2048`),
+				regexp.MustCompile(`rtorrent_downloads_download_total_bytes{info_hash="CCCC",name="baz"} 2048`),
 				regexp.MustCompile(`rtorrent_downloads_upload_rate_bytes{info_hash="CCCC",name="baz"} 2048`),
+				regexp.MustCompile(`rtorrent_downloads_upload_total_bytes{info_hash="CCCC",name="baz"} 2048`),
 			},
 		},
 	}
@@ -101,6 +111,7 @@ type testDownloadsSource struct {
 	downloads []string
 	files     map[string]string
 	rate      int
+	total     int
 }
 
 func (ds *testDownloadsSource) All() ([]string, error)        { return ds.downloads, nil }
@@ -116,5 +127,7 @@ func (ds *testDownloadsSource) Active() ([]string, error)     { return ds.downlo
 func (ds *testDownloadsSource) BaseFilename(infoHash string) (string, error) {
 	return ds.files[infoHash], nil
 }
-func (ds *testDownloadsSource) DownloadRate(_ string) (int, error) { return ds.rate, nil }
-func (ds *testDownloadsSource) UploadRate(_ string) (int, error)   { return ds.rate, nil }
+func (ds *testDownloadsSource) DownloadRate(_ string) (int, error)  { return ds.rate, nil }
+func (ds *testDownloadsSource) DownloadTotal(_ string) (int, error) { return ds.total, nil }
+func (ds *testDownloadsSource) UploadRate(_ string) (int, error)    { return ds.rate, nil }
+func (ds *testDownloadsSource) UploadTotal(_ string) (int, error)   { return ds.total, nil }
